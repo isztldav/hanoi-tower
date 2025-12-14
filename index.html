@@ -119,6 +119,7 @@
             display: flex;
             justify-content: center;
             gap: 12px;
+            position: relative;
         }
 
         .peg-wrapper {
@@ -177,15 +178,18 @@
             flex-direction: column-reverse;
             align-items: center;
             gap: 3px;
+            min-height: 27px;
         }
 
         /* Individual Disk */
         .disk {
             height: 24px;
             border-radius: 8px;
-            position: relative;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            transform-origin: center bottom;
+            z-index: 10;
         }
 
         .disk::before {
@@ -452,22 +456,6 @@
             box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
         }
 
-        /* Animations */
-        @keyframes diskAppear {
-            from {
-                opacity: 0;
-                transform: scale(0.5) translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .disk-animate {
-            animation: diskAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-
         /* Responsive */
         @media (max-width: 500px) {
             .stats-card {
@@ -635,43 +623,44 @@
         const playAgainBtn = document.getElementById('playAgainBtn');
         const difficultyBtns = document.querySelectorAll('.difficulty-btn');
 
-        // Render the game board
-        function render() {
+        // Store references to disk elements
+        let diskElements = {};
+        let pegWrappers = [];
+        let diskStacks = [];
+
+        // Calculate disk position based on stack index
+        function getDiskBottomPosition(stackIndex) {
+            return stackIndex * 27; // 24px height + 3px gap
+        }
+
+        // Initialize the static peg structure (only once)
+        function initializePegs() {
             pegsContainer.innerHTML = '';
-            
+            pegWrappers = [];
+            diskStacks = [];
+
             for (let pegIndex = 0; pegIndex < 3; pegIndex++) {
                 const pegWrapper = document.createElement('div');
-                pegWrapper.className = `peg-wrapper${game.selectedPeg === pegIndex ? ' selected' : ''}`;
+                pegWrapper.className = 'peg-wrapper';
                 pegWrapper.dataset.peg = pegIndex;
 
                 const pegArea = document.createElement('div');
                 pegArea.className = 'peg-area';
 
-                // Peg rod
                 const pegRod = document.createElement('div');
                 pegRod.className = 'peg-rod';
                 pegArea.appendChild(pegRod);
 
-                // Disks stack
                 const disksStack = document.createElement('div');
                 disksStack.className = 'disks-stack';
-
-                game.pegs[pegIndex].forEach((disk, index) => {
-                    const diskEl = document.createElement('div');
-                    diskEl.className = `disk disk-${disk} disk-size-${disk}`;
-                    diskEl.style.animationDelay = `${index * 0.05}s`;
-                    disksStack.appendChild(diskEl);
-                });
-
                 pegArea.appendChild(disksStack);
+
                 pegWrapper.appendChild(pegArea);
 
-                // Peg base
                 const pegBase = document.createElement('div');
                 pegBase.className = 'peg-base';
                 pegWrapper.appendChild(pegBase);
 
-                // Peg label
                 const pegLabel = document.createElement('div');
                 pegLabel.className = 'peg-label';
                 pegLabel.textContent = `Peg ${pegIndex + 1}`;
@@ -679,7 +668,73 @@
 
                 pegWrapper.addEventListener('click', () => handlePegClick(pegIndex));
                 pegsContainer.appendChild(pegWrapper);
+
+                pegWrappers.push(pegWrapper);
+                diskStacks.push(disksStack);
             }
+        }
+
+        // Create disk elements and add them to the first peg
+        function createDisks() {
+            // Remove old disks
+            Object.values(diskElements).forEach(el => el.remove());
+            diskElements = {};
+
+            // Create new disks
+            for (let i = game.diskCount; i >= 1; i--) {
+                const diskEl = document.createElement('div');
+                diskEl.className = `disk disk-${i} disk-size-${i}`;
+                diskEl.dataset.disk = i;
+                
+                // Position in stack (index in pegs[0] array)
+                const stackIndex = game.diskCount - i;
+                diskEl.style.bottom = getDiskBottomPosition(stackIndex) + 'px';
+                
+                diskStacks[0].appendChild(diskEl);
+                diskElements[i] = diskEl;
+            }
+        }
+
+        // Update disk positions with animation
+		function updateDiskPositions() {
+		    for (let pegIndex = 0; pegIndex < 3; pegIndex++) {
+		        game.pegs[pegIndex].forEach((disk, stackIndex) => {
+		            const diskEl = diskElements[disk];
+		            const targetStack = diskStacks[pegIndex];
+
+		            // FLIP animation
+		            const first = diskEl.getBoundingClientRect();
+
+		            if (diskEl.parentElement !== targetStack) {
+		                targetStack.appendChild(diskEl);
+		            }
+
+		            diskEl.style.bottom = getDiskBottomPosition(stackIndex) + 'px';
+
+		            const last = diskEl.getBoundingClientRect();
+
+		            const dx = first.left - last.left;
+		            const dy = first.top - last.top;
+
+		            diskEl.style.transition = 'none';
+		            diskEl.style.transform = `translate(${dx - last.width / 2}px, ${dy}px)`;
+
+		            requestAnimationFrame(() => {
+		                diskEl.style.transition =
+		                    'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+		                diskEl.style.transform = 'translate(-50%, 0)';
+		            });
+		        });
+		    }
+		}
+        
+
+        // Update UI state (selection, stats, instructions)
+        function updateUI() {
+            // Update peg selection
+            pegWrappers.forEach((wrapper, index) => {
+                wrapper.classList.toggle('selected', game.selectedPeg === index);
+            });
 
             // Update stats
             movesEl.textContent = game.moves;
@@ -705,6 +760,7 @@
                 } else {
                     // Try to move
                     if (game.moveDisk(game.selectedPeg, pegIndex)) {
+                        updateDiskPositions();
                         if (game.hasWon) {
                             setTimeout(showWinModal, 500);
                         }
@@ -717,7 +773,7 @@
                     game.selectedPeg = pegIndex;
                 }
             }
-            render();
+            updateUI();
         }
 
         // Show win modal
@@ -736,7 +792,8 @@
         function resetGame(diskCount = game.diskCount) {
             game.reset(diskCount);
             hideWinModal();
-            render();
+            createDisks();
+            updateUI();
             
             // Update difficulty buttons
             difficultyBtns.forEach(btn => {
@@ -763,6 +820,7 @@
         });
 
         // Initialize game
+        initializePegs();
         resetGame(3);
     </script>
 </body>
