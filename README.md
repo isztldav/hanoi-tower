@@ -6,7 +6,7 @@ A classic puzzle game built as a single-page web application.
 
 Move all disks from the first peg to the last peg. You can only move one disk at a time, and a larger disk cannot be placed on top of a smaller one.
 
-**[Play the game →](https://yourusername.github.io/hanoi-tower/)**
+**[Play the game →](https://isztldav.github.io/hanoi-tower/)**
 
 ## Features
 
