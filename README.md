@@ -24,4 +24,4 @@ Or host it on GitHub Pages — no build step required.
 
 ## License
 
-MIT
+GPL
